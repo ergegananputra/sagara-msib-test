@@ -1,124 +1,310 @@
 package controllers
 
 import (
+	"fmt"
 	"strings"
 
-	"github.com/ergegananputra/sagara-msib-test/initializers"
 	"github.com/ergegananputra/sagara-msib-test/models"
+	servicesI "github.com/ergegananputra/sagara-msib-test/services"
+	services "github.com/ergegananputra/sagara-msib-test/services/impl"
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
 )
 
+/**
+ * Utilitas Baju Controller
+ */
+
+func bindRequest(c *gin.Context) (models.BajuBasicRequest, error) {
+	var body models.BajuBasicRequest
+	err := c.Bind(&body)
+	if err != nil {
+		return body, err
+	}
+	return body, nil
+}
+
+/**
+ * Controller Baju
+ */
+
+var bajuService servicesI.BajuServiceInterface = &services.BajuServiceImpl{}
+
 func CreateBaju(c *gin.Context) {
-	var body struct {
-		Name string
-		Warna string
-		Ukuran string
-		Harga string
-		Stok int
-	}
-
-	c.Bind(&body)
-
-	if !strings.Contains(body.Harga, ".") {
-        body.Harga = body.Harga + ".00"
-    }
-
-
-	harga, err := decimal.NewFromString(body.Harga)
-    if err != nil {
-        c.JSON(400, gin.H{"error": "Invalid harga format"})
-        return
-    }
-
-	baju := models.Baju{
-		Name:  body.Name,
-		Warna: body.Warna,
-		Ukuran: body.Ukuran,
-		Harga: harga,
-		Stok:  body.Stok,
-	}
-
-	result := initializers.DB.Create(&baju)
-
-	if result.Error != nil {
-		c.JSON(400, gin.H{
-			"message": "Failed to create Baju",
+	body, err := bindRequest(c)
+	if err != nil {
+		c.JSON(400, models.Response{
+			Message: "Permintaan tidak valid",
 		})
 		return
 	}
 
-	c.JSON(200, gin.H{
-		"message": "Create Baju success",
-		"data":    baju,
+	baju, validationErrors, err := bajuService.CreateBaju(
+		&body,
+		func(isEmpty bool, value *decimal.Decimal, err error) {
+			if isEmpty {
+				c.JSON(400, models.Response{
+					Message: "Harga tidak boleh kosong",
+				})
+				return
+			}
+			if err != nil {
+				c.JSON(400, models.Response{
+					Message: "Format harga tidak valid",
+				})
+				return
+			}
+		},
+	)
+
+	if len(validationErrors) > 0 {
+		c.JSON(400, models.Response{
+			Message: "Validation errors",
+			Data:    validationErrors,
+		})
+		return
+	}
+
+	if err != nil {
+		c.JSON(500, models.Response{
+			Message: "Gagal membuat baju",
+		})
+		return
+	}
+
+	c.JSON(200, models.Response{
+		Message: "Berhasil membuat baju",
+		Data:    baju,
 	})
 }
 
 func GetBajus(c *gin.Context) {
-	var bajus []models.Baju
-	initializers.DB.Find(&bajus)
+	bajus, err := bajuService.GetBajus()
 
-	c.JSON(200, gin.H{
-		"data": bajus,
+	if err != nil {
+		c.JSON(500, models.Response{
+			Message: "Gagal menemukan baju",
+		})
+		return
+	}
+
+	c.JSON(200, models.Response{
+		Message: "Berhasil menemukan baju",
+		Data:    bajus,
 	})
 }
 
 func GetBaju(c *gin.Context) {
 	id := c.Param("id")
 
-	var baju models.Baju
-	initializers.DB.First(&baju, id)
+	baju, err := bajuService.GetBaju(&id)
 
-	c.JSON(200, gin.H{
-		"data": baju,
+	if err != nil {
+		c.JSON(500, models.Response{
+			Message: "Gagal menemukan baju dengan id " + id,
+			Data:    nil,
+		})
+		return
+	}
+
+	if baju.ID == 0 {
+		c.JSON(404, models.Response{
+			Message: "Baju dengan id " + id + " tidak ditemukan",
+			Data:    nil,
+		})
+		return
+	}
+
+	c.JSON(200, models.Response{
+		Message: "Berhasil menemukan baju",
+		Data:    baju,
 	})
 }
 
 func UpdateBaju(c *gin.Context) {
 	id := c.Param("id")
 
-	var body struct {
-		Name string
-		Warna string
-		Ukuran string
-		Harga string
-		Stok int
+	body, err := bindRequest(c)
+
+	if err != nil {
+		c.JSON(400, models.Response{
+			Message: "Permintaan tidak valid",
+		})
+		return
 	}
 
-	c.Bind(&body)
+	baju, err := bajuService.UpdateBaju(&id, body)
 
-	if !strings.Contains(body.Harga, ".") {
-        body.Harga = body.Harga + ".00"
-    }
+	if baju.ID != 0 && err != nil {
+		c.JSON(400, models.Response{
+			Message: "Permintaan tidak valid",
+		})
 
-	var baju models.Baju
-	initializers.DB.First(&baju, id)
-
-	if body.Harga == ".00" {
-		body.Harga = baju.Harga.String()
+		return
 	}
 
-	initializers.DB.Model(&baju).Updates(models.Baju{
-		Name:  body.Name,
-		Warna: body.Warna,
-		Ukuran: body.Ukuran,
-		Harga: decimal.RequireFromString(body.Harga),
-		Stok:  body.Stok,
-	})
+	if baju.ID == 0 && err != nil {
+		c.JSON(400, models.Response{
+			Message: "Format harga tidak valid",
+		})
+		return
+	}
 
-	c.JSON(200, gin.H{
-		"data": baju,
+	c.JSON(200, models.Response{
+		Message: "Baju dengan id " + id + " berhasil diupdate",
+		Data:    baju,
 	})
 }
 
 func DeleteBaju(c *gin.Context) {
 	id := c.Param("id")
 
-	var baju models.Baju
-	initializers.DB.Delete(&baju, id)
+	baju, err := bajuService.DeleteBaju(&id)
 
-	c.JSON(200, gin.H{
-		"message": "Delete Baju success",
-		"data": baju,
+	if err != nil {
+		c.JSON(500, models.Response{
+			Message: "Gagal menghapus baju dengan id " + id + " " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, models.Response{
+		Message: "Berhasil menghapus baju dengan id " + id,
+		Data:    baju,
+	})
+}
+
+func SearchByWarnaAndUkuranBaju(c *gin.Context) {
+	warna := strings.ToLower(c.Query("warna"))
+	ukuran := strings.ToLower(c.Query("ukuran"))
+
+	bajus, err := bajuService.SearchByWarnaAndUkuranBaju(warna, ukuran)
+
+	if err != nil {
+		c.JSON(500, models.Response{
+			Message: "Gagal menemukan baju",
+		})
+		return
+	}
+
+	if bajus == nil {
+		c.JSON(404, models.Response{
+			Message: "Tidak ada baju yang cocok",
+		})
+		return
+	}
+
+	c.JSON(200, models.Response{
+		Message: "Berhasil menemukan baju",
+		Data:    bajus,
+	})
+}
+
+func AddStokBaju(c *gin.Context) {
+	id := c.Param("id")
+
+	var requestBody struct {
+		Stok int `json:"stok"`
+	}
+
+	err := c.Bind(&requestBody)
+
+	if err != nil {
+		c.JSON(400, models.Response{
+			Message: "Stok tidak boleh kosong",
+		})
+		return
+	}
+
+	baju, err := bajuService.AddStokBaju(&id, requestBody.Stok)
+	if err == nil && baju.ID == 0 {
+		c.JSON(404, models.Response{
+			Message: "Baju dengan id " + id + " tidak ditemukan",
+			Data:    nil,
+		})
+		return
+	}
+	if err == nil && baju.ID != 0 {
+		c.JSON(500, models.Response{
+			Message: "Gagal menemukan baju dengan id " + id,
+			Data:    nil,
+		})
+		return
+	}
+
+	c.JSON(200, models.Response{
+		Message: "Stok baju dengan id " + id + " berhasil diupdate",
+		Data:    baju,
+	})
+}
+
+func ReduceStokBaju(c *gin.Context) {
+	id := c.Param("id")
+
+	var requestBody struct {
+		Stok int `json:"stok"`
+	}
+
+	err := c.Bind(&requestBody)
+
+	if err != nil {
+		c.JSON(400, models.Response{
+			Message: "Stok tidak boleh kosong",
+		})
+		return
+	}
+
+	baju, err := bajuService.ReduceStokBaju(&id, requestBody.Stok)
+	if err == nil && baju.ID == 0 {
+		c.JSON(404, models.Response{
+			Message: "Baju dengan id " + id + " tidak ditemukan",
+			Data:    nil,
+		})
+		return
+	}
+	if err == nil && baju.ID == 0 {
+		c.JSON(500, models.Response{
+			Message: "Gagal menemukan baju dengan id " + id,
+			Data:    nil,
+		})
+		return
+	}
+
+	c.JSON(200, models.Response{
+		Message: "Stok baju dengan id " + id + " berhasil diupdate",
+		Data:    baju,
+	})
+}
+
+func StokEmptyBaju(c *gin.Context) {
+	bajus := bajuService.StokEmptyBaju()
+
+	if bajus == nil {
+		c.JSON(404, models.Response{
+			Message: "Tidak ada baju yang stoknya kosong",
+		})
+		return
+	}
+
+	c.JSON(200, models.Response{
+		Message: "Berhasil menemukan baju yang stoknya kosong",
+		Data:    bajus,
+	})
+}
+
+func StockAlertBaju(c *gin.Context) {
+	limit := 5
+	bajus := bajuService.StockAlertBaju(&limit)
+
+	if bajus == nil {
+		c.JSON(404, models.Response{
+			Message: fmt.Sprintf("Tidak ada baju yang stoknya kurang dari %d", limit),
+		})
+		return
+	}
+
+	c.JSON(200, models.Response{
+		Message: fmt.Sprintf("Berhasil menemukan baju yang stoknya kurang dari %d", limit),
+		Data:    bajus,
 	})
 }

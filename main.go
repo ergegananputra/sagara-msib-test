@@ -1,14 +1,14 @@
 package main
 
 import (
-	"github.com/ergegananputra/sagara-msib-test/controllers"
-	"github.com/ergegananputra/sagara-msib-test/initializers"
+	"github.com/ergegananputra/sagara-msib-test/configs"
+	"github.com/ergegananputra/sagara-msib-test/routers"
 	"github.com/gin-gonic/gin"
 )
 
 func init() {
-	initializers.LoadEnvVariables()
-	initializers.ConnectToDatabase()
+	configs.LoadEnvVariables()
+	configs.ConnectToDatabase()
 }
 
 /** 
@@ -17,10 +17,6 @@ func init() {
  */
 func main() {
 	r := gin.Default()
-	r.POST("/baju/create", controllers.CreateBaju)
-	r.GET("/baju", controllers.GetBajus)
-	r.GET("/baju/:id", controllers.GetBaju)
-	r.PUT("/baju/:id", controllers.UpdateBaju)
-	r.DELETE("/baju/:id", controllers.DeleteBaju)
+	routers.ApiRoutes(r)
 	r.Run()
 }
