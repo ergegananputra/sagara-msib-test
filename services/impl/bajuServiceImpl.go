@@ -14,7 +14,7 @@ type BajuServiceImpl struct{}
 
 func (e *BajuServiceImpl) CreateBaju(model *models.BajuBasicRequest, interceptor helpers.StringToDecimalInterceptor) (models.Baju, []string, error) {
 	
-	baju := models.CreateBajuModel(model.Name, model.Warna, model.Ukuran, model.Harga, model.Stok, interceptor)
+	baju := createBajuModel(model.Name, model.Warna, model.Ukuran, model.Harga, model.Stok, interceptor)
 
 	errs := validations.ValidateBaju(&baju)
 
@@ -71,7 +71,7 @@ func (e *BajuServiceImpl) UpdateBaju(id *string, model models.BajuBasicRequest) 
 	}
 
 	var thisError error
-	newBaju := models.CreateBajuModel(model.Name, model.Warna, model.Ukuran, model.Harga, model.Stok, 
+	newBaju := createBajuModel(model.Name, model.Warna, model.Ukuran, model.Harga, model.Stok, 
 		func(isEmpty bool, value *decimal.Decimal, err error) {
 			if err != nil {
 				thisError = err
@@ -83,7 +83,9 @@ func (e *BajuServiceImpl) UpdateBaju(id *string, model models.BajuBasicRequest) 
 	)
 
 	if thisError != nil {
-		return models.Baju{}, thisError
+		return models.Baju{
+			Name:  "%CODE%_ERROR",
+		}, thisError
 	}
 
 	result = configs.DB.Model(&baju).Updates(models.Baju{
