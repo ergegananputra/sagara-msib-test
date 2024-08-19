@@ -12,7 +12,8 @@ func init() {
 }
 
 /** 
- * Sebelum menjalankan aplikasi, jalankan Script Migration terlebih dahulu
+ * Sebelum menjalankan aplikasi, buatlah file .env contoh seperti .env.example. 
+ * Kemudian jalankan Script Migration terlebih dahulu
  * go run migrate/migrate.go
  */
 func main() {
